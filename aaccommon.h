@@ -47,7 +47,7 @@
 #define _AACCOMMON_H
 
 #include <Arduino.h>
-#include <pgmspace.h>
+//#include <pgmspace.h>
 
 // Can't fit in ESP8266 RAM
 #ifndef ESP8266
