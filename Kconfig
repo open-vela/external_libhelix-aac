@@ -11,4 +11,14 @@ config CODEC_HELIXAAC
 	---help---
 		Enable support for the Helix Advanced Audio Codec library
 
+if CODEC_HELIXAAC
+
+config CODEC_HELIXAAC_SBR
+	bool "AAC-Spectral Band Replication"
+	default n
+	---help---
+		Enable support for the AAC-PlusV1-SBR.
+
+endif
+
 endmenu
