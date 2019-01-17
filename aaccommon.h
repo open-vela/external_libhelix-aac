@@ -49,7 +49,9 @@
 #include <Arduino.h>
 //#include <pgmspace.h>
 
-#define AAC_ENABLE_SBR 0
+#ifdef CONFIG_CODEC_HELIXAAC_SBR
+  #define AAC_ENABLE_SBR 1
+#endif
 
 #pragma GCC optimize ("O3")
 
