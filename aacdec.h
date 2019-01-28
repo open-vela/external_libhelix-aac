@@ -155,6 +155,8 @@ HAACDecoder AACInitDecoderPre(void *ptr, int sz);
 void AACFreeDecoder(HAACDecoder hAACDecoder);
 int AACDecode(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, short *outbuf);
 
+int AACSetFormat(HAACDecoder hAACDecoder, int format);
+
 int AACFindSyncWord(unsigned char *buf, int nBytes);
 void AACGetLastFrameInfo(HAACDecoder hAACDecoder, AACFrameInfo *aacFrameInfo);
 int AACSetRawBlockParams(HAACDecoder hAACDecoder, int copyLast, AACFrameInfo *aacFrameInfo);
