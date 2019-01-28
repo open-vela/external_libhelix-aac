@@ -83,7 +83,7 @@ int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 
 	/* verify that first 12 bits of header are syncword */
 	if (GetBits(&bsi, 12) != 0x0fff) {
-		return ERR_AAC_INVALID_ADTS_HEADER; 
+		return ERR_AAC_INVALID_HEADER;
 	}
 
 	/* fixed fields - should not change from frame to frame */ 
@@ -114,7 +114,7 @@ int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 	/* check validity of header */
 	if (fhADTS->layer != 0 || fhADTS->profile != AAC_PROFILE_LC ||
 		fhADTS->sampRateIdx >= NUM_SAMPLE_RATES || fhADTS->channelConfig >= NUM_DEF_CHAN_MAPS)
-		return ERR_AAC_INVALID_ADTS_HEADER;
+		return ERR_AAC_INVALID_HEADER;
 
 #ifndef AAC_ENABLE_MPEG4
 	if (fhADTS->id != 1)
@@ -327,7 +327,7 @@ int UnpackADIFHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 
 	/* verify that first 32 bits of header are "ADIF" */
 	if (GetBits(&bsi, 8) != 'A' || GetBits(&bsi, 8) != 'D' || GetBits(&bsi, 8) != 'I' || GetBits(&bsi, 8) != 'F')
-		return ERR_AAC_INVALID_ADIF_HEADER;
+		return ERR_AAC_INVALID_HEADER;
 
 	/* read ADIF header fields */
 	fhADIF->copyBit = GetBits(&bsi, 1);
@@ -356,7 +356,7 @@ int UnpackADIFHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 
 	/* check validity of header */
 	if (psi->nChans < 0 || psi->sampRateIdx < 0 || psi->sampRateIdx >= NUM_SAMPLE_RATES)
-		return ERR_AAC_INVALID_ADIF_HEADER;
+		return ERR_AAC_INVALID_HEADER;
 								
 	/* syntactic element fields will be read from bitstream for each element */
 	aacDecInfo->prevBlockID = AAC_ID_INVALID;
