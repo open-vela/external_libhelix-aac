@@ -292,6 +292,51 @@ int AACFlushCodec(HAACDecoder hAACDecoder)
 }
 
 /**************************************************************************************
+ * Function:    AACGetFrameLength
+ *
+ * Description: find and get AAC frame length
+ *
+ * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
+ *              double pointer to buffer of AAC data
+ *              pointer to number of valid bytes remaining in inbuf
+ *              pointer to return frame length
+ *
+ * Outputs:     updated inbuf pointer
+ *              updated bytesLeft
+ *              updated bytesFrames
+ *
+ * Return:      0 if successful, error code (< 0) if error
+ *
+ **************************************************************************************/
+int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, int *bytesFrames)
+{
+	AACDecInfo *aacDecInfo = (AACDecInfo *)hAACDecoder;
+	int offset, bitOffset, bitsAvail;
+	unsigned char *inptr;
+
+	if (!aacDecInfo)
+		return ERR_AAC_NULL_POINTER;
+
+	if (aacDecInfo->format != AAC_FF_ADTS)
+		return ERR_AAC_MPEG4_UNSUPPORTED;
+
+	*bytesFrames = 0;
+	inptr = *inbuf;
+	bitOffset = 0;
+	bitsAvail = (*bytesLeft) << 3;
+
+	offset = AACFindSyncWord(inptr, *bytesLeft);
+	if (offset < 0) {
+		*bytesFrames = ADTS_HEADER_BYTES;
+		return ERR_AAC_INDATA_HEADER_UNDERFLOW;
+	}
+	inptr += offset;
+	bitsAvail -= (offset << 3);
+
+	return UnpackADTSHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail, bytesFrames);
+}
+
+/**************************************************************************************
  * Function:    AACDecode
  *
  * Description: decode AAC frame
@@ -360,7 +405,7 @@ int AACDecode(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, sh
 			inptr += offset;
 			bitsAvail -= (offset << 3);
 
-			err = UnpackADTSHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail);
+			err = UnpackADTSHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail, NULL);
 			if (err)
 				return err;
 
