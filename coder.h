@@ -234,6 +234,16 @@ typedef struct _ADIFHeader {
     unsigned char copyID[ADIF_COPYID_SIZE];       /* optional 72-bit copyright ID */
 } ADIFHeader;
 
+typedef struct _LATMHeader {
+	int samplingFrequency;
+	int samplingFrequencyIndex;
+	int audioObjectType;
+	int channelConfiguration;
+	int frameLengthType;
+	int frameLength;
+	int init;
+} LATMHeader;
+
 /* sizeof(ProgConfigElement) = 82 bytes (if KEEP_PCE_COMMENTS not defined) */
 typedef struct _ProgConfigElement {
     unsigned char elemInstTag;                    /* element instance tag */
@@ -269,6 +279,7 @@ typedef struct _PSInfoBase {
     /* header information */
     ADTSHeader            fhADTS;
     ADIFHeader            fhADIF;
+    LATMHeader            fhLATM;
     ProgConfigElement     pce[MAX_NUM_PCE_ADIF];
     int                   dataCount;
     unsigned char         dataBuf[DATA_BUF_SIZE];

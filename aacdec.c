@@ -311,13 +311,15 @@ int AACFlushCodec(HAACDecoder hAACDecoder)
 int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, int *bytesFrames)
 {
 	AACDecInfo *aacDecInfo = (AACDecInfo *)hAACDecoder;
+	int err = ERR_AAC_MPEG4_UNSUPPORTED;
 	int offset, bitOffset, bitsAvail;
 	unsigned char *inptr;
 
 	if (!aacDecInfo)
 		return ERR_AAC_NULL_POINTER;
 
-	if (aacDecInfo->format != AAC_FF_ADTS)
+	if (aacDecInfo->format != AAC_FF_ADTS
+			&& aacDecInfo->format != AAC_FF_LATM_MCP1)
 		return ERR_AAC_MPEG4_UNSUPPORTED;
 
 	*bytesFrames = 0;
@@ -325,15 +327,20 @@ int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytes
 	bitOffset = 0;
 	bitsAvail = (*bytesLeft) << 3;
 
-	offset = AACFindSyncWord(inptr, *bytesLeft);
-	if (offset < 0) {
-		*bytesFrames = ADTS_HEADER_BYTES;
-		return ERR_AAC_INDATA_HEADER_UNDERFLOW;
-	}
-	inptr += offset;
-	bitsAvail -= (offset << 3);
+	if (aacDecInfo->format == AAC_FF_ADTS) {
+		offset = AACFindSyncWord(inptr, *bytesLeft);
+		if (offset < 0) {
+			*bytesFrames = ADTS_HEADER_BYTES;
+			return ERR_AAC_INDATA_HEADER_UNDERFLOW;
+		}
+		inptr += offset;
+		bitsAvail -= (offset << 3);
 
-	return UnpackADTSHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail, bytesFrames);
+		err = UnpackADTSHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail, bytesFrames);
+	} else if (aacDecInfo->format == AAC_FF_LATM_MCP1)
+		err = UnpackLATMHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail, bytesFrames);
+
+	return err;
 }
 
 /**************************************************************************************
@@ -419,6 +426,10 @@ int AACDecode(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, sh
 		aacDecInfo->adtsBlocksLeft--;
 	} else if (aacDecInfo->format == AAC_FF_RAW) {
 		err = PrepareRawBlock(aacDecInfo);
+		if (err)
+			return err;
+	} else if (aacDecInfo->format == AAC_FF_LATM_MCP1) {
+		err = UnpackLATMHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail, NULL);
 		if (err)
 			return err;
 	}
