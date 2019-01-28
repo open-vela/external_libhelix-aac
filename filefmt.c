@@ -45,6 +45,193 @@
 
 #include "coder.h"
 
+static uint32_t LatmGetValue(BitStreamInfo *s)
+{
+	uint32_t l, value;
+	uint8_t bytesForValue = GetBits(s, 2);
+
+	value = 0;
+	for (l = 0; l <= bytesForValue; l++)
+		value = (value << 8) | (uint8_t)GetBits(s, 8);
+
+	return value;
+}
+
+static int AudioSpecificConfig(LATMHeader *header, BitStreamInfo *s)
+{
+	int samplingFrequency = 0;
+	int channelConfiguration;
+	int samplingFrequencyIndex;
+	int audioObjectType = GetBits(s, 5);
+
+	if (audioObjectType == 31)
+		audioObjectType = GetBits(s, 6) + 32;
+
+	samplingFrequencyIndex = GetBits(s, 4);
+	if (samplingFrequencyIndex == 0xF)
+		samplingFrequency = GetBits(s, 24);
+	else
+		samplingFrequency = sampRateTab[samplingFrequencyIndex];
+
+	channelConfiguration = GetBits(s, 4);
+
+	if (audioObjectType != AAC_PROFILE_LC + 1
+			|| !samplingFrequency
+			|| channelConfiguration > 7)
+		return ERR_AAC_INVALID_HEADER;
+
+	header->samplingFrequency = samplingFrequency;
+	header->samplingFrequencyIndex = samplingFrequencyIndex;
+	header->audioObjectType = audioObjectType;
+	header->channelConfiguration = channelConfiguration;
+
+	return ERR_AAC_NONE;
+}
+
+ /**************************************************************************************
+ * Function:    UnpackLATMHeader
+ *
+ * Description: parse the LATM frame header and initialize decoder state
+ *
+ * Inputs:      valid AACDecInfo struct
+ *              double pointer to buffer with complete LATM frame header
+ *
+ * Outputs:     filled in LATM struct
+ *              updated buffer pointer
+ *              updated bit offset
+ *              updated number of available bits
+ *
+ * Return:      0 if successful, error code (< 0) if error
+ *
+ **************************************************************************************/
+int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int *bytesFrames)
+{
+	int bitsUsed, bytesHeader;
+	PSInfoBase *psi;
+	BitStreamInfo bsi;
+	LATMHeader *fhLATM;
+
+	/* validate pointers */
+	if (!aacDecInfo || !aacDecInfo->psInfoBase)
+		return ERR_AAC_NULL_POINTER;
+
+	if ((*bitsAvail + 7 ) >> 3 < LATM_HEADER_BYTES + 10) {
+		if (bytesFrames)
+			*bytesFrames = LATM_HEADER_BYTES + 10;
+		return ERR_AAC_INDATA_HEADER_UNDERFLOW;
+	}
+
+	psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
+	fhLATM = &(psi->fhLATM);
+
+	/* init bitstream reader */
+	SetBitstreamPointer(&bsi, (*bitsAvail) >> 3, *buf);
+	GetBits(&bsi, *bitOffset);
+
+	if (!GetBits(&bsi, 1)) { // useSameStreamMux
+		int audioMuxVersion = GetBits(&bsi, 1);
+		if (audioMuxVersion && !GetBits(&bsi, 1)) { // audioMuxVersionA
+			int ret;
+			int ascLen, allStreamsSameTimeFraming, numSubFrames, numProgram, numLayer;
+			if (audioMuxVersion)
+				LatmGetValue(&bsi); //taraBufferFullness
+
+			allStreamsSameTimeFraming = GetBits(&bsi, 1);
+			numSubFrames = GetBits(&bsi, 6);
+			numProgram = GetBits(&bsi, 4);
+			numLayer = GetBits(&bsi, 3);
+			if (numProgram > 0
+					|| numLayer > 0
+					|| numSubFrames > 0
+					|| !allStreamsSameTimeFraming)
+				return ERR_AAC_INVALID_HEADER;
+
+			if (audioMuxVersion)
+				ascLen = LatmGetValue(&bsi);
+			bitsUsed = CalcBitsUsed(&bsi, *buf, *bitOffset);
+
+			ret = AudioSpecificConfig(fhLATM, &bsi);
+			if (ret < 0)
+				return ret;
+
+			GetBits(&bsi, ascLen - (CalcBitsUsed(&bsi, *buf, *bitOffset) - bitsUsed));
+
+			psi->sampRateIdx = fhLATM->samplingFrequencyIndex;
+			psi->nChans = channelMapTab[fhLATM->channelConfiguration];
+
+			aacDecInfo->nChans = fhLATM->channelConfiguration;
+			aacDecInfo->sampRate = sampRateTab[fhLATM->samplingFrequencyIndex];
+			aacDecInfo->profile = fhLATM->audioObjectType;
+
+			aacDecInfo->bitRate = 0;
+			aacDecInfo->sbrEnabled = 0;
+			aacDecInfo->prevBlockID = AAC_ID_INVALID;
+			aacDecInfo->currBlockID = AAC_ID_INVALID;
+			aacDecInfo->currInstTag = -1;
+		}
+
+		fhLATM->frameLengthType = GetBits(&bsi, 3);
+		if (fhLATM->frameLengthType == 0) {
+			fhLATM->frameLength = 0;
+			GetBits(&bsi, 8); // latmBufferFullness
+		} else if (fhLATM->frameLengthType == 1) {
+			fhLATM->frameLength = GetBits(&bsi, 9);
+			if (!fhLATM->frameLength)
+				return ERR_AAC_INVALID_HEADER;
+			fhLATM->frameLength = (fhLATM->frameLength + 20) * 8;
+		} else
+			return ERR_AAC_INVALID_HEADER;
+
+		if (GetBits(&bsi, 1)) { // otherDataPresent
+			int esc, tmp;
+			int otherDataLenBits;
+			if (audioMuxVersion) {
+				otherDataLenBits = LatmGetValue(&bsi);
+			} else do {
+				esc = GetBits(&bsi, 1);
+				tmp = GetBits(&bsi, 8);
+				otherDataLenBits = (otherDataLenBits << 8) + tmp;
+			} while (esc);
+		}
+
+		if (GetBits(&bsi, 1)) // crcCheckPresent
+			GetBits(&bsi, 8);
+
+		fhLATM->init = 1;
+	}
+
+	bitsUsed = CalcBitsUsed(&bsi, *buf, *bitOffset);
+	if ((bitsUsed - *bitOffset) >> 3 > LATM_HEADER_BYTES)
+		return ERR_AAC_INVALID_HEADER;
+
+	bytesHeader = LATM_HEADER_BYTES;
+	if (fhLATM->init && !fhLATM->frameLengthType) {
+		int tmp;
+		do {
+			tmp = (uint8_t)GetBits(&bsi, 8);
+			fhLATM->frameLength += tmp;
+			bytesHeader++;
+		} while (tmp == 0xFF);
+	} else
+		return ERR_AAC_INVALID_HEADER;
+
+	if (bytesFrames)
+		*bytesFrames = fhLATM->frameLength + bytesHeader;
+
+	if ((*bitsAvail + 7 ) >> 3 < fhLATM->frameLength + bytesHeader)
+		return ERR_AAC_INDATA_UNDERFLOW;
+
+	bitsUsed = CalcBitsUsed(&bsi, *buf, *bitOffset);
+	*buf += (bitsUsed + *bitOffset) >> 3;
+	*bitOffset = (bitsUsed + *bitOffset) & 0x07;
+	*bitsAvail -= bitsUsed;
+
+	if (*bitsAvail < 0)
+		return ERR_AAC_INDATA_UNDERFLOW;
+
+	return ERR_AAC_NONE;
+}
+
  /**************************************************************************************
  * Function:    UnpackADTSHeader
  *

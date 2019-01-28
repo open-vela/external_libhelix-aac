@@ -142,7 +142,8 @@ enum {
 
 	AAC_FF_ADTS = 1,
 	AAC_FF_ADIF = 2,
-	AAC_FF_RAW  = 3
+	AAC_FF_LATM_MCP1 = 3,
+	AAC_FF_RAW  = 4
 };
 
 typedef struct _AACFrameInfo {

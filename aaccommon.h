@@ -65,6 +65,7 @@
 #define MAX_NCHANS_ELEM		2	/* max number of channels in any single bitstream element (SCE,CPE,CCE,LFE) */
 
 #define ADTS_HEADER_BYTES	7
+#define LATM_HEADER_BYTES	9
 #define NUM_SAMPLE_RATES	12
 #define NUM_DEF_CHAN_MAPS	8
 #define NUM_ELEMENTS		8
@@ -150,6 +151,7 @@ AACDecInfo *AllocateBuffersPre(void **space, int *len);
 void FreeBuffers(AACDecInfo *aacDecInfo);
 void ClearBuffer(void *buf, int nBytes);
 
+int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int *bytesFrames);
 int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int *bytesFrames);
 int GetADTSChannelMapping(AACDecInfo *aacDecInfo, unsigned char *buf, int bitOffset, int bitsAvail);
 int UnpackADIFHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail);
