@@ -108,8 +108,9 @@ extern "C" {
 enum {
 	ERR_AAC_NONE                          =   0,
 	ERR_AAC_INDATA_UNDERFLOW              =  -1,
-	ERR_AAC_NULL_POINTER                  =  -2,
-	ERR_AAC_INVALID_HEADER                =  -3,
+	ERR_AAC_INDATA_HEADER_UNDERFLOW       =  -2,
+	ERR_AAC_NULL_POINTER                  =  -3,
+	ERR_AAC_INVALID_HEADER                =  -4,
 	ERR_AAC_INVALID_FRAME                 =  -5,
 	ERR_AAC_MPEG4_UNSUPPORTED             =  -6,
 	ERR_AAC_CHANNEL_MAP                   =  -7,
@@ -135,6 +136,15 @@ enum {
 	ERR_AAC_UNKNOWN						= -9999
 };
 
+/* AAC file format */
+enum {
+	AAC_FF_Unknown = 0,		/* should be 0 on init */
+
+	AAC_FF_ADTS = 1,
+	AAC_FF_ADIF = 2,
+	AAC_FF_RAW  = 3
+};
+
 typedef struct _AACFrameInfo {
 	int bitRate;
 	int nChans;
@@ -156,6 +166,7 @@ void AACFreeDecoder(HAACDecoder hAACDecoder);
 int AACDecode(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, short *outbuf);
 
 int AACSetFormat(HAACDecoder hAACDecoder, int format);
+int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, int *bytesFrames);
 
 int AACFindSyncWord(unsigned char *buf, int nBytes);
 void AACGetLastFrameInfo(HAACDecoder hAACDecoder, AACFrameInfo *aacFrameInfo);

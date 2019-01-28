@@ -64,7 +64,7 @@
  * TODO:        test CRC
  *              verify that fixed fields don't change between frames
  **************************************************************************************/
-int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail)
+int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int *bytesFrames)
 {
 	int bitsUsed;
 	PSInfoBase *psi;
@@ -74,6 +74,13 @@ int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 	/* validate pointers */
 	if (!aacDecInfo || !aacDecInfo->psInfoBase)
 		return ERR_AAC_NULL_POINTER;
+
+	if ((*bitsAvail + 7 ) >> 3 < ADTS_HEADER_BYTES) {
+		if (bytesFrames)
+			*bytesFrames = ADTS_HEADER_BYTES;
+		return ERR_AAC_INDATA_HEADER_UNDERFLOW;
+	}
+
 	psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
 	fhADTS = &(psi->fhADTS);
 
@@ -138,6 +145,9 @@ int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 	aacDecInfo->profile = fhADTS->profile;
 	aacDecInfo->sbrEnabled = 0;
 	aacDecInfo->adtsBlocksLeft = fhADTS->numRawDataBlocks;
+
+	if (bytesFrames)
+		*bytesFrames = fhADTS->frameLength;
 
 	/* update bitstream reader */
 	bitsUsed = CalcBitsUsed(&bsi, *buf, *bitOffset);
