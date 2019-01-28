@@ -226,6 +226,31 @@ int AACSetRawBlockParams(HAACDecoder hAACDecoder, int copyLast, AACFrameInfo *aa
 }
 
 /**************************************************************************************
+ * Function:    AACSetFormat
+ *
+ * Description: set internal state variables for decoding a stream of raw data blocks
+ *
+ * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
+ *              AAC transport format
+ *
+ * Outputs:     updated codec state
+ *
+ * Return:      0 if successful, error code (< 0) if error
+ *
+ **************************************************************************************/
+int AACSetFormat(HAACDecoder hAACDecoder, int format)
+{
+	AACDecInfo *aacDecInfo = (AACDecInfo *)hAACDecoder;
+
+	if (!aacDecInfo)
+		return ERR_AAC_NULL_POINTER;
+
+	aacDecInfo->format = format;
+
+	return ERR_AAC_NONE;
+}
+
+/**************************************************************************************
  * Function:    AACFlushCodec
  *
  * Description: flush internal codec state (after seeking, for example)
