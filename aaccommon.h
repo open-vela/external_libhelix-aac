@@ -95,16 +95,6 @@
 #define IS_ADIF(p)		((p)[0] == 'A' && (p)[1] == 'D' && (p)[2] == 'I' && (p)[3] == 'F')
 #define GET_ELE_ID(p)	((AACElementID)(*(p) >> (8-NUM_SYN_ID_BITS)))
 
-/* AAC file format */
-enum {
-	AAC_FF_Unknown = 0,		/* should be 0 on init */
-
-	AAC_FF_ADTS = 1,
-	AAC_FF_ADIF = 2,
-	AAC_FF_RAW =  3
-
-};
-
 /* syntactic element type */
 enum {
 	AAC_ID_INVALID = -1,
@@ -160,7 +150,7 @@ AACDecInfo *AllocateBuffersPre(void **space, int *len);
 void FreeBuffers(AACDecInfo *aacDecInfo);
 void ClearBuffer(void *buf, int nBytes);
 
-int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail);
+int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int *bytesFrames);
 int GetADTSChannelMapping(AACDecInfo *aacDecInfo, unsigned char *buf, int bitOffset, int bitsAvail);
 int UnpackADIFHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail);
 int SetRawBlockParams(AACDecInfo *aacDecInfo, int copyLast, int nChans, int sampRate, int profile);
