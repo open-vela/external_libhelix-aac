@@ -70,7 +70,7 @@
 #
 #elif defined(ARDUINO)
 #
-#elif defined(__riscv__)
+#elif defined(__riscv)
 #
 #else
 #error No platform defined. See valid options in aacdec.h
