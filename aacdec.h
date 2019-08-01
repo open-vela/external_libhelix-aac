@@ -134,6 +134,7 @@ enum {
 	ERR_AAC_SBR_SINGLERATE_UNSUPPORTED    = -21,
 
 	ERR_AAC_RAWBLOCK_PARAMS               = -22,
+	ERR_AAC_NO_SYNCWORD                   = -23,
 
 	ERR_AAC_UNKNOWN						= -9999
 };
@@ -169,7 +170,7 @@ void AACFreeDecoder(HAACDecoder hAACDecoder);
 int AACDecode(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, short *outbuf);
 
 int AACSetFormat(HAACDecoder hAACDecoder, int format);
-int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, int *bytesFrames);
+int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int bytes, int *bytesFrames);
 
 int AACFindSyncWord(unsigned char *buf, int nBytes);
 void AACGetLastFrameInfo(HAACDecoder hAACDecoder, AACFrameInfo *aacFrameInfo);

@@ -151,6 +151,7 @@ AACDecInfo *AllocateBuffersPre(void **space, int *len);
 void FreeBuffers(AACDecInfo *aacDecInfo);
 void ClearBuffer(void *buf, int nBytes);
 
+int GetADTSFrameLength(unsigned char *inbuf, int bitsAvail, int *bytesFrames);
 int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int *bytesFrames);
 int UnpackADTSHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset, int *bitsAvail, int *bytesFrames);
 int GetADTSChannelMapping(AACDecInfo *aacDecInfo, unsigned char *buf, int bitOffset, int bitsAvail);
