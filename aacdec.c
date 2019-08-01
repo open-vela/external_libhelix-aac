@@ -298,7 +298,7 @@ int AACFlushCodec(HAACDecoder hAACDecoder)
  *
  * Inputs:      valid AAC decoder instance pointer (HAACDecoder)
  *              double pointer to buffer of AAC data
- *              pointer to number of valid bytes remaining in inbuf
+ *              data bytes in inbuf
  *              pointer to return frame length
  *
  * Outputs:     updated inbuf pointer
@@ -308,7 +308,7 @@ int AACFlushCodec(HAACDecoder hAACDecoder)
  * Return:      0 if successful, error code (< 0) if error
  *
  **************************************************************************************/
-int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytesLeft, int *bytesFrames)
+int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int bytes, int *bytesFrames)
 {
 	AACDecInfo *aacDecInfo = (AACDecInfo *)hAACDecoder;
 	int err = ERR_AAC_MPEG4_UNSUPPORTED;
@@ -325,18 +325,19 @@ int AACGetFrameLength(HAACDecoder hAACDecoder, unsigned char **inbuf, int *bytes
 	*bytesFrames = 0;
 	inptr = *inbuf;
 	bitOffset = 0;
-	bitsAvail = (*bytesLeft) << 3;
+	bitsAvail = (bytes) << 3;
 
 	if (aacDecInfo->format == AAC_FF_ADTS) {
-		offset = AACFindSyncWord(inptr, *bytesLeft);
+		offset = AACFindSyncWord(inptr, bytes);
 		if (offset < 0) {
 			*bytesFrames = ADTS_HEADER_BYTES;
-			return ERR_AAC_INDATA_HEADER_UNDERFLOW;
+			return ERR_AAC_NO_SYNCWORD;
 		}
 		inptr += offset;
 		bitsAvail -= (offset << 3);
+		*inbuf = inptr;
 
-		err = UnpackADTSHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail, bytesFrames);
+		err = GetADTSFrameLength(inptr, bitsAvail, bytesFrames);
 	} else if (aacDecInfo->format == AAC_FF_LATM_MCP1)
 		err = UnpackLATMHeader(aacDecInfo, &inptr, &bitOffset, &bitsAvail, bytesFrames);
 

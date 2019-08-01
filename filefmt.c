@@ -215,11 +215,11 @@ int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 	} else
 		return ERR_AAC_INVALID_HEADER;
 
+	if (fhLATM->frameLength > 2048)
+		return ERR_AAC_INVALID_HEADER;
+
 	if (bytesFrames)
 		*bytesFrames = fhLATM->frameLength + bytesHeader;
-
-	if ((*bitsAvail + 7 ) >> 3 < fhLATM->frameLength + bytesHeader)
-		return ERR_AAC_INDATA_UNDERFLOW;
 
 	bitsUsed = CalcBitsUsed(&bsi, *buf, *bitOffset);
 	*buf += (bitsUsed + *bitOffset) >> 3;
@@ -227,9 +227,56 @@ int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 	*bitsAvail -= bitsUsed;
 
 	if (*bitsAvail < 0)
-		return ERR_AAC_INDATA_UNDERFLOW;
+		return ERR_AAC_INDATA_HEADER_UNDERFLOW;
 
 	return ERR_AAC_NONE;
+}
+
+int GetADTSFrameLength(unsigned char *inbuf, int bitsAvail, int *bytesFrames)
+{
+	unsigned char layer;                          /* MPEG layer - should be 0 */
+	unsigned char protectBit;                     /* 0 = CRC word follows, 1 = no CRC word */
+	unsigned char profile;                        /* 0 = main, 1 = LC, 2 = SSR, 3 = reserved */
+	unsigned char sampRateIdx;                    /* sample rate index range = [0, 11] */
+	unsigned char channelConfig;                  /* 0 = implicit, >0 = use default table */
+	unsigned int frameLength;                     /* frame length */
+	BitStreamInfo bsi;
+
+	if ((bitsAvail + 7 ) >> 3 < ADTS_HEADER_BYTES) {
+		if (bytesFrames)
+			*bytesFrames = ADTS_HEADER_BYTES;
+		return ERR_AAC_INDATA_HEADER_UNDERFLOW;
+	}
+
+	/* init bitstream reader */
+	SetBitstreamPointer(&bsi, (bitsAvail + 7) >> 3, inbuf);
+
+	/* verify that first 12 bits of header are syncword */
+	if (GetBits(&bsi, 12) != 0x0fff) {
+		return ERR_AAC_INVALID_HEADER;
+	}
+
+	GetBits(&bsi, 1);
+	layer =         GetBits(&bsi, 2);
+	protectBit =    GetBits(&bsi, 1);
+	profile =       GetBits(&bsi, 2);
+	sampRateIdx =   GetBits(&bsi, 4);
+	GetBits(&bsi, 1);
+	channelConfig = GetBits(&bsi, 3);
+	GetBits(&bsi, 4);
+	frameLength =   GetBits(&bsi, 13);
+
+	if (layer != 0 || profile != AAC_PROFILE_LC ||
+		sampRateIdx >= NUM_SAMPLE_RATES || channelConfig >= NUM_DEF_CHAN_MAPS)
+		return ERR_AAC_INVALID_HEADER;
+
+	if (frameLength > 2048)
+		return ERR_AAC_INVALID_HEADER;
+
+	if (bytesFrames)
+		*bytesFrames = frameLength;
+
+	return 0;
 }
 
  /**************************************************************************************
