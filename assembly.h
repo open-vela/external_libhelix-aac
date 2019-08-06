@@ -558,9 +558,8 @@ static __inline int CLZ(int x)
 typedef union _U64 {
 	Word64 w64;
 	struct {
-		/* PowerPC = big endian */
-		signed int   hi32;
 		unsigned int lo32;
+		signed int   hi32;
 	} r;
 } U64;
 
