@@ -121,7 +121,7 @@
  *
  * Notes:       sectCB, sectEnd, sfbCodeBook, ordered by window groups for short blocks
  **************************************************************************************/
-/* __attribute__ ((section (".data"))) */ static void DecodeSectionData(BitStreamInfo *bsi, int winSequence, int numWinGrp, int maxSFB, unsigned char *sfbCodeBook)
+/* __attribute__ ((section (".data"))) */ static int DecodeSectionData(BitStreamInfo *bsi, int winSequence, int numWinGrp, int maxSFB, unsigned char *sfbCodeBook)
 {
 	int g, cb, sfb;
 	int sectLen, sectLenBits, sectLenIncr, sectEscapeVal;
@@ -143,8 +143,10 @@
 			while (sectLen--)
 				*sfbCodeBook++ = (unsigned char)cb;
 		}
-		ASSERT(sfb == maxSFB);
+		if(sfb != maxSFB)
+			return ERR_AAC_UNKNOWN;
 	}
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -398,9 +400,9 @@ static void DecodeGainControlInfo(BitStreamInfo *bsi, int winSequence, GainContr
  *
  * Return:      none
  **************************************************************************************/
-static void DecodeICS(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
+static int DecodeICS(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
 {
-	int globalGain;
+	int globalGain, ret;
 	ICSInfo *icsInfo;
 	PulseInfo *pi;
 	TNSInfo *ti;
@@ -412,10 +414,11 @@ static void DecodeICS(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
 	if (!psi->commonWin)
 		DecodeICSInfo(bsi, icsInfo, psi->sampRateIdx);
 
-	DecodeSectionData(bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch]);
+	if((ret = DecodeSectionData(bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch])) != ERR_AAC_NONE)
+		return ret;
 
 	DecodeScaleFactors(bsi, icsInfo->numWinGroup, icsInfo->maxSFB, globalGain, psi->sfbCodeBook[ch], psi->scaleFactors[ch]);
-	
+
 	pi = &psi->pulseInfo[ch];
 	pi->pulseDataPresent = GetBits(bsi, 1);
 	if (pi->pulseDataPresent)
@@ -430,6 +433,7 @@ static void DecodeICS(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
 	gi->gainControlDataPresent = GetBits(bsi, 1);
 	if (gi->gainControlDataPresent)
 		DecodeGainControlInfo(bsi, icsInfo->winSequence, gi);
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -455,22 +459,28 @@ int DecodeNoiselessData(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOff
 	BitStreamInfo bsi;
 	PSInfoBase *psi;
 	ICSInfo *icsInfo;
+	int ret;
 
 	/* validate pointers */
 	if (!aacDecInfo || !aacDecInfo->psInfoBase)
 		return ERR_AAC_NULL_POINTER;
 	psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
 	icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
-	
+
 	SetBitstreamPointer(&bsi, (*bitsAvail+7) >> 3, *buf);
 	GetBits(&bsi, *bitOffset);
 
-	DecodeICS(psi, &bsi, ch);
+	if((ret = DecodeICS(psi, &bsi, ch)) != ERR_AAC_NONE)
+		return ret;
 
 	if (icsInfo->winSequence == 2)
 		DecodeSpectrumShort(psi, &bsi, ch);
 	else
-		DecodeSpectrumLong(psi, &bsi, ch);
+	{
+		ret = DecodeSpectrumLong(psi, &bsi, ch);
+		if(ret != ERR_AAC_NONE)
+			return ret;
+	}
 
 	bitsUsed = CalcBitsUsed(&bsi, *buf, *bitOffset);
 	*buf += ((bitsUsed + *bitOffset) >> 3);

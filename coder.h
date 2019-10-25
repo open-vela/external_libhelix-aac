@@ -331,7 +331,7 @@ int DecodeProgramConfigElement(ProgConfigElement *pce, BitStreamInfo *bsi);
 
 /* huffman.c */
 int DecodeHuffmanScalar(const signed short *huffTab, const HuffInfo *huffTabInfo, unsigned int bitBuf, signed int *val);
-void DecodeSpectrumLong(PSInfoBase *psi, BitStreamInfo *bsi, int ch);
+int DecodeSpectrumLong(PSInfoBase *psi, BitStreamInfo *bsi, int ch);
 void DecodeSpectrumShort(PSInfoBase *psi, BitStreamInfo *bsi, int ch);
 
 /* noiseless.c */

@@ -295,7 +295,7 @@ static void UnpackZeros(int nVals, int *coef)
  *              fills coefficient buffer with zeros in any region not coded with
  *                codebook in range [1, 11] (including sfb's above sfbMax)
  **************************************************************************************/
-/* __attribute__ ((section (".data"))) */ void DecodeSpectrumLong(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
+/* __attribute__ ((section (".data"))) */ int DecodeSpectrumLong(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
 {
 	int i, sfb, cb, nVals, offset;
 	const /*short*/ int *sfbTab;
@@ -344,8 +344,10 @@ static void UnpackZeros(int nVals, int *coef)
 			else
 				coef[offset] -= pi->amp[i];
 		}
-		ASSERT(offset < NSAMPS_LONG);
+		if(offset >= NSAMPS_LONG)
+			return ERR_AAC_UNKNOWN;
 	}
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
