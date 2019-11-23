@@ -235,7 +235,6 @@ int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 int GetADTSFrameLength(unsigned char *inbuf, int bitsAvail, int *bytesFrames)
 {
 	unsigned char layer;                          /* MPEG layer - should be 0 */
-	unsigned char protectBit;                     /* 0 = CRC word follows, 1 = no CRC word */
 	unsigned char profile;                        /* 0 = main, 1 = LC, 2 = SSR, 3 = reserved */
 	unsigned char sampRateIdx;                    /* sample rate index range = [0, 11] */
 	unsigned char channelConfig;                  /* 0 = implicit, >0 = use default table */
@@ -258,7 +257,7 @@ int GetADTSFrameLength(unsigned char *inbuf, int bitsAvail, int *bytesFrames)
 
 	GetBits(&bsi, 1);
 	layer =         GetBits(&bsi, 2);
-	protectBit =    GetBits(&bsi, 1);
+	GetBits(&bsi, 1);
 	profile =       GetBits(&bsi, 2);
 	sampRateIdx =   GetBits(&bsi, 4);
 	GetBits(&bsi, 1);
