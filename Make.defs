@@ -34,5 +34,5 @@
 ############################################################################
 
 ifeq ($(CONFIG_CODEC_HELIXAAC),y)
-CONFIGURED_APPS += external/system/codec/libhelix-aac
+CONFIGURED_APPS += $(APPDIR)/external/system/codec/libhelix-aac
 endif
