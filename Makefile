@@ -14,6 +14,18 @@
 # limitations under the License.
 #
 
-ifeq ($(CONFIG_CODEC_HELIXAAC),y)
-CONFIGURED_APPS += $(APPDIR)/external/libhelix-aac
+
+-include $(APPDIR)/Make.defs
+
+CSRCS += aacdec.c bitstream.c buffers.c dct4.c decelmnt.c dequant.c
+CSRCS += fft.c filefmt.c huffman.c hufftabs.c imdct.c noiseless.c
+CSRCS += pns.c stproc.c tns.c trigtabs.c aactabs.c
+
+ifneq ($(CONFIG_CODEC_HELIXAAC_SBR),)
+CSRCS += sbr.c sbrfft.c sbrfreq.c sbrhfadj.c sbrhfgen.c sbrhuff.c
+CSRCS += sbrimdct.c sbrmath.c sbrqmf.c sbrside.c sbrtabs.c
 endif
+
+CFLAGS += -DUSE_DEFAULT_STDLIB
+
+include $(APPDIR)/Application.mk
