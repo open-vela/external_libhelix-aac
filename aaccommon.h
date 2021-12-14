@@ -46,7 +46,7 @@
 #ifndef _AACCOMMON_H
 #define _AACCOMMON_H
 
-#include <Arduino.h>
+#include "Arduino.h"
 //#include <pgmspace.h>
 
 #ifdef CONFIG_CODEC_HELIXAAC_SBR
