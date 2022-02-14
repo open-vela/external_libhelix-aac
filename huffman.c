@@ -289,7 +289,7 @@ static void UnpackZeros(int nVals, int *coef)
  *
  * Outputs:     decoded, quantized coefficients for this channel
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  *
  * Notes:       adds in pulse data if present
  *              fills coefficient buffer with zeros in any region not coded with
@@ -304,16 +304,25 @@ static void UnpackZeros(int nVals, int *coef)
 	ICSInfo *icsInfo;
 	PulseInfo *pi;
 
+	if(ch < 0 || ch >= MAX_NCHANS_ELEM || psi->sampRateIdx < 0 || psi->sampRateIdx >= NUM_SAMPLE_RATES)
+		return ERR_AAC_INVALID_FRAME;
+
 	coef = psi->coef[ch];
 	icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
 	/* decode long block */
 	sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
+
+	if (sfBandTabLongOffset[psi->sampRateIdx] + icsInfo->maxSFB >= 325 || icsInfo->maxSFB > MAX_SF_BANDS)
+		return ERR_AAC_INVALID_FRAME;
+
 	sfbCodeBook = psi->sfbCodeBook[ch];
 	for (sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
 		cb = *sfbCodeBook++;
 		nVals = sfbTab[sfb+1] - sfbTab[sfb];
-		
+		if((coef + nVals) > (psi->coef[ch] + AAC_MAX_NSAMPS))
+			return ERR_AAC_INVALID_FRAME;
+
 		if (cb == 0)
 			UnpackZeros(nVals, coef);
 		else if (cb <= 4)
@@ -330,15 +339,27 @@ static void UnpackZeros(int nVals, int *coef)
 
 	/* fill with zeros above maxSFB */
 	nVals = NSAMPS_LONG - sfbTab[sfb];
+	if (coef + nVals > psi->coef[ch] + AAC_MAX_NSAMPS)
+		return ERR_AAC_INVALID_FRAME;
+
 	UnpackZeros(nVals, coef);
 
 	/* add pulse data, if present */
 	pi = &psi->pulseInfo[ch];
 	if (pi->pulseDataPresent) {
 		coef = psi->coef[ch];
+
+		if(pi->startSFB < 0 || sfbTab + pi->startSFB > sfBandTabLong + 325 ||
+		   pi->numPulse < 0 || pi->numPulse > MAX_PULSES)
+			return ERR_AAC_INVALID_FRAME;
+
 		offset = sfbTab[pi->startSFB];
 		for (i = 0; i < pi->numPulse; i++) {
 			offset += pi->offset[i];
+
+			if(coef + offset >= psi->coef[ch] + AAC_MAX_NSAMPS)
+				return ERR_AAC_INVALID_FRAME;
+
 			if (coef[offset] > 0)
 				coef[offset] += pi->amp[i];
 			else
@@ -362,13 +383,13 @@ static void UnpackZeros(int nVals, int *coef)
  *
  * Outputs:     decoded, quantized coefficients for this channel
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  *
  * Notes:       fills coefficient buffer with zeros in any region not coded with
  *                codebook in range [1, 11] (including sfb's above sfbMax)
  *              deinterleaves window groups into 8 windows
  **************************************************************************************/
-/* __attribute__ ((section (".data"))) */ void DecodeSpectrumShort(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
+/* __attribute__ ((section (".data"))) */ int DecodeSpectrumShort(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
 {
 	int gp, cb, nVals=0, win, offset, sfb;
 	const /*short*/ int *sfbTab;
@@ -376,19 +397,35 @@ static void UnpackZeros(int nVals, int *coef)
 	int *coef;
 	ICSInfo *icsInfo;
 
+	if (ch < 0 || ch >= MAX_NCHANS_ELEM || psi->sampRateIdx < 0 || psi->sampRateIdx >= NUM_SAMPLE_RATES)
+		return ERR_AAC_INVALID_FRAME;
+
 	coef = psi->coef[ch];
 	icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
 	/* decode short blocks, deinterleaving in-place */
 	sfbTab = sfBandTabShort + sfBandTabShortOffset[psi->sampRateIdx];
+	if (sfbTab + icsInfo->maxSFB >= sfBandTabShort + 76)
+		return ERR_AAC_INVALID_FRAME;
+
 	sfbCodeBook = psi->sfbCodeBook[ch];
+
+	if (icsInfo->numWinGroup > MAX_WIN_GROUPS)
+		return ERR_AAC_INVALID_FRAME;
+
 	for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
 		for (sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
 			nVals = sfbTab[sfb+1] - sfbTab[sfb];
-			cb = *sfbCodeBook++;
 
+			if (sfbCodeBook >= psi->sfbCodeBook[ch] + MAX_SF_BANDS)
+				return ERR_AAC_INVALID_FRAME;
+
+			cb = *sfbCodeBook++;
 			for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
 				offset = win*NSAMPS_SHORT;
+				if(coef + offset + nVals > psi->coef[ch] + AAC_MAX_NSAMPS)
+					return ERR_AAC_INVALID_FRAME;
+
 				if (cb == 0)
 					UnpackZeros(nVals, coef + offset);
 				else if (cb <= 4)
@@ -407,11 +444,17 @@ static void UnpackZeros(int nVals, int *coef)
 		for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
 			offset = win*NSAMPS_SHORT;
 			nVals = NSAMPS_SHORT - sfbTab[sfb];
+			if (coef + offset + nVals > psi->coef[ch] + AAC_MAX_NSAMPS)
+				return ERR_AAC_INVALID_FRAME;
+
 			UnpackZeros(nVals, coef + offset);
 		}
 		coef += nVals;
 		coef += (icsInfo->winGroupLen[gp] - 1)*NSAMPS_SHORT;
 	}
 
-	ASSERT(coef == psi->coef[ch] + NSAMPS_LONG);
+	if(coef != psi->coef[ch] + NSAMPS_LONG)
+	    return ERR_AAC_UNKNOWN;
+
+    return ERR_AAC_NONE;
 }
