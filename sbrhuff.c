@@ -109,6 +109,9 @@ static int DecodeOneSymbol(BitStreamInfo *bsi, int huffTabIndex)
 	unsigned int bitBuf;
 	const HuffInfo *hi;
 
+	if(huffTabIndex < 0 || huffTabIndex >= 10)
+		return ERR_AAC_INVALID_FRAME;
+	
 	hi = &(huffTabSBRInfo[huffTabIndex]);
 
 	bitBuf = GetBitsNoAdvance(bsi, hi->maxBits) << (32 - hi->maxBits);
@@ -241,9 +244,10 @@ static void DequantizeNoise(int nBands, signed char *noiseQuant, int *noiseDequa
  *              dequantized env scalefactors for right channel (if coupling off)
  *                or raw decoded env scalefactors for right channel (if coupling on)
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
+ *
  **************************************************************************************/
-void DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch)
+int DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch)
 {
 	int huffIndexTime, huffIndexFreq, env, envStartBits, band, nBands, sf, lastEnv;
 	int freqRes, freqResPrev, dShift, i;
@@ -281,7 +285,8 @@ void DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBR
 		if (lastEnv < 0)
 			lastEnv = 0;	/* first frame */
 
-		ASSERT(nBands <= MAX_QMF_BANDS);
+		if(nBands > MAX_QMF_BANDS)
+			return ERR_AAC_UNKNOWN;
 
 		if (sbrChan->deltaFlagEnv[env] == 0) {
 			/* delta coding in freq */
@@ -329,6 +334,8 @@ void DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBR
 	}
 	sbrGrid->numEnvPrev = sbrGrid->numEnv;
 	sbrGrid->freqResPrev = sbrGrid->freqRes[sbrGrid->numEnv-1];
+
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -347,9 +354,10 @@ void DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBR
  *              dequantized noise scalefactors for right channel (if coupling off)
  *                or raw decoded noise scalefactors for right channel (if coupling on)
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
+ *
  **************************************************************************************/
-void DecodeSBRNoise(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch)
+int DecodeSBRNoise(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch)
 {
 	int huffIndexTime, huffIndexFreq, noiseFloor, band, dShift, sf, lastNoiseFloor;
 
@@ -368,7 +376,8 @@ void DecodeSBRNoise(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFre
 		if (lastNoiseFloor < 0)
 			lastNoiseFloor = 0;	/* first frame */
 
-		ASSERT(sbrFreq->numNoiseFloorBands <= MAX_QMF_BANDS);
+		if(sbrFreq->numNoiseFloorBands > MAX_QMF_BANDS)
+			return ERR_AAC_UNKNOWN;
 
 		if (sbrChan->deltaFlagNoise[noiseFloor] == 0) {
 			/* delta coding in freq */
@@ -390,6 +399,8 @@ void DecodeSBRNoise(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFre
 			DequantizeNoise(sbrFreq->numNoiseFloorBands, sbrChan->noiseDataQuant[noiseFloor], psi->noiseDataDequant[ch][noiseFloor]);
 	}
 	sbrGrid->numNoiseFloorsPrev = sbrGrid->numNoiseFloors;
+
+	return ERR_AAC_NONE;
 }
 
 /* dqTabCouple[i] = 2 / (1 + 2^(12 - i)), format = Q30 */

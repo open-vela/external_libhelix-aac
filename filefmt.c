@@ -184,7 +184,7 @@ int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 
 		if (GetBits(&bsi, 1)) { // otherDataPresent
 			int esc, tmp;
-			int otherDataLenBits;
+			int otherDataLenBits = 0;
 			if (audioMuxVersion) {
 				otherDataLenBits = LatmGetValue(&bsi);
 			} else do {
@@ -428,6 +428,9 @@ int GetADTSChannelMapping(AACDecInfo *aacDecInfo, unsigned char *buf, int bitOff
 			return err;
 
 		elementChans = elementNumChans[aacDecInfo->currBlockID];
+		if (nChans + elementChans > AAC_MAX_NCHANS)
+			return ERR_AAC_NCHANS_TOO_HIGH;
+
 		nChans += elementChans;
 
 		for (ch = 0; ch < elementChans; ch++) {

@@ -206,6 +206,9 @@ int TNSFilter(AACDecInfo *aacDecInfo, int ch)
 	if (!ti->tnsDataPresent)
 		return 0;
 
+	if(aacDecInfo->profile < 0 || aacDecInfo->profile >= AAC_NUM_PROFILES || psi->sampRateIdx < 0 || psi->sampRateIdx >= NUM_SAMPLE_RATES)
+		return ERR_AAC_INVALID_FRAME;
+
 	if (icsInfo->winSequence == 2) {
 		nWindows = NWINDOWS_SHORT;
 		winLen = NSAMPS_SHORT;
@@ -237,9 +240,15 @@ int TNSFilter(AACDecInfo *aacDecInfo, int ch)
 	audioCoef =  psi->coef[ch];
 	for (win = 0; win < nWindows; win++) {
 		bottom = nSFB;
+		if(win >= MAX_TNS_FILTERS)
+			return ERR_AAC_INVALID_FRAME;
+
 		numFilt = ti->numFilt[win];
 		for (filt = 0; filt < numFilt; filt++) {
 			top = bottom;
+			if(filtLength >= ti->length + MAX_TNS_FILTERS || filtOrder >= ti->order + MAX_TNS_FILTERS)
+				return ERR_AAC_INVALID_FRAME;
+
 			bottom = top - *filtLength++;
 			bottom = MAX(bottom, 0);
 			order = *filtOrder++;
@@ -250,9 +259,15 @@ int TNSFilter(AACDecInfo *aacDecInfo, int ch)
 				end   = sfbTab[MIN(top, tnsMaxBand)];
 				size = end - start;
 				if (size > 0) {
+					if(filtDir >= ti->dir + MAX_TNS_FILTERS)
+						return ERR_AAC_INVALID_FRAME;
+
 					dir = *filtDir++;
 					if (dir)
 						start = end - 1;
+
+					if(order < 0 || order > MAX_TNS_ORDER)
+						return ERR_AAC_INVALID_FRAME;
 
 					DecodeLPCCoefs(order, filtRes[win], filtCoef, psi->tnsLPCBuf, psi->tnsWorkBuf);
 					gbMask |= FilterRegion(size, dir, order, audioCoef + start, psi->tnsLPCBuf, psi->tnsWorkBuf);

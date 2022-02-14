@@ -181,6 +181,7 @@ int DecodeSBRBitstream(AACDecInfo *aacDecInfo, int chBase)
 	int headerFlag;
 	BitStreamInfo bsi;
 	PSInfoSBR *psi;
+	int ret = ERR_AAC_NONE;
 
 	/* validate pointers */
 	if (!aacDecInfo || !aacDecInfo->psInfoSBR)
@@ -211,8 +212,11 @@ int DecodeSBRBitstream(AACDecInfo *aacDecInfo, int chBase)
 			psi->sbrChan[chBase].reset = 1;
 	
 		/* first valid SBR header should always trigger CalcFreqTables(), since psi->reset was set in InitSBR() */
-		if (psi->sbrChan[chBase].reset)
-			CalcFreqTables(&(psi->sbrHdr[chBase+0]), &(psi->sbrFreq[chBase]), psi->sampRateIdx);
+		if (psi->sbrChan[chBase].reset) {
+			ret = CalcFreqTables(&(psi->sbrHdr[chBase+0]), &(psi->sbrFreq[chBase]), psi->sampRateIdx);
+			if (ret != 0)
+				return ret;
+		}
 
 		/* copy and reset state to right channel for CPE */
 		if (aacDecInfo->prevBlockID == AAC_ID_CPE)
@@ -225,9 +229,13 @@ int DecodeSBRBitstream(AACDecInfo *aacDecInfo, int chBase)
 		return ERR_AAC_NONE;
 
 	if (aacDecInfo->prevBlockID == AAC_ID_SCE) {
-		UnpackSBRSingleChannel(&bsi, psi, chBase);
+		ret = UnpackSBRSingleChannel(&bsi, psi, chBase);
+		if (ret != ERR_AAC_NONE)
+			return ret;
 	} else if (aacDecInfo->prevBlockID == AAC_ID_CPE) {
-		UnpackSBRChannelPair(&bsi, psi, chBase);
+		ret = UnpackSBRChannelPair(&bsi, psi, chBase);
+		if (ret != ERR_AAC_NONE)
+			return ret;
 	} else {
 		return ERR_AAC_SBR_BITSTREAM;
 	}

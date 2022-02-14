@@ -53,8 +53,6 @@
   #define AAC_ENABLE_SBR 1
 #endif
 
-#pragma GCC optimize ("O3")
-
 #include "aacdec.h"
 #include "statname.h"
 
