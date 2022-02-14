@@ -149,7 +149,7 @@ static int DequantBlock(int *inbuf, int nSamps, int scale)
 	int iSamp, scalef, scalei, x, y, gbMask, shift, tab4[4];
 	const int *tab16, *coef;
 
-	if (nSamps <= 0)
+	if (nSamps <= 0 || nSamps > AAC_MAX_NSAMPS)
 		return 0;
 
 	scale -= SF_OFFSET;	/* new range = [-100, 156] */
@@ -310,9 +310,13 @@ int Dequantize(AACDecInfo *aacDecInfo, int ch)
 	if (icsInfo->winSequence == 2) {
 		sfbTab = sfBandTabShort + sfBandTabShortOffset[psi->sampRateIdx];
 		nSamps = NSAMPS_SHORT;
+		if((sfbTab + icsInfo->maxSFB) >= (sfBandTabShort + 76))
+			return ERR_AAC_INVALID_FRAME;
 	} else {
 		sfbTab = sfBandTabLong + sfBandTabLongOffset[psi->sampRateIdx];
 		nSamps = NSAMPS_LONG;
+		if((sfbTab + icsInfo->maxSFB) >= (sfBandTabLong + 325))
+			return ERR_AAC_INVALID_FRAME;
 	}
 	coef = psi->coef[ch];
 	sfbCodeBook = psi->sfbCodeBook[ch];
@@ -321,6 +325,10 @@ int Dequantize(AACDecInfo *aacDecInfo, int ch)
 	psi->intensityUsed[ch] = 0;
 	psi->pnsUsed[ch] = 0;
 	gbMask = 0;
+
+	if((icsInfo->numWinGroup * icsInfo->maxSFB) > MAX_SF_BANDS)
+		return ERR_AAC_INVALID_FRAME;
+
 	for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
 		for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
 			for (sfb = 0; sfb < icsInfo->maxSFB; sfb++) {
@@ -329,9 +337,15 @@ int Dequantize(AACDecInfo *aacDecInfo, int ch)
 				 */
 				cb = (int)(sfbCodeBook[sfb]);
 				width = sfbTab[sfb+1] - sfbTab[sfb];
-				if (cb >= 0 && cb <= 11)
+				if (cb >= 0 && cb <= 11) {
+
+					if((width < 0) || (width > AAC_MAX_NSAMPS)
+					    || (coef < psi->coef[ch]) || (coef >= psi->coef[ch] + AAC_MAX_NSAMPS)
+					    || (coef + width < psi->coef[ch]) || (coef + width > psi->coef[ch] + AAC_MAX_NSAMPS))
+						return ERR_AAC_INVALID_FRAME;
+
 					gbMask |= DequantBlock(coef, width, scaleFactors[sfb]);
-				else if (cb == 13)
+				} else if (cb == 13)
 					psi->pnsUsed[ch] = 1;
 				else if (cb == 14 || cb == 15)
 					psi->intensityUsed[ch] = 1;	/* should only happen if ch == 1 */

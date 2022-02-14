@@ -71,12 +71,12 @@
  * Outputs:     updated transform coefficients in Q(FBITS_OUT_DQ_OFF)
  *              updated minimum guard bit count for both channels
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  *
  * Notes:       assume no guard bits in input
  *              gains 0 int bits
  **************************************************************************************/
-static void StereoProcessGroup(int *coefL, int *coefR, const /*short*/ int *sfbTab, 
+static int StereoProcessGroup(int *coefL, int *coefR, const /*short*/ int *sfbTab,
 							  int msMaskPres, unsigned char *msMaskPtr, int msMaskOffset, int maxSFB, 
 							  unsigned char *cbRight, short *sfRight, int *gbCurrent)
 {
@@ -92,6 +92,7 @@ static const int pow14[2][4] PROGMEM = {
 	int sfb, width, cbIdx, sf, cl, cr, scalef, scalei;
 	int gbMaskL, gbMaskR;
 	unsigned char msMask;
+	int *coefL_start = coefL;
 
 	msMask = (*msMaskPtr++) >> msMaskOffset;
 	gbMaskL = 0;
@@ -99,6 +100,9 @@ static const int pow14[2][4] PROGMEM = {
 
 	for (sfb = 0; sfb < maxSFB; sfb++) {
 		width = sfbTab[sfb+1] - sfbTab[sfb];	/* assume >= 0 (see sfBandTabLong/sfBandTabShort) */
+		if(width <= 0)
+			return ERR_AAC_INVALID_FRAME;
+
 		cbIdx = cbRight[sfb];
 
 		if (cbIdx == 14 || cbIdx == 15) {
@@ -114,6 +118,9 @@ static const int pow14[2][4] PROGMEM = {
 				if (scalei > 30)
 					scalei = 30;
 				do {
+					if(coefL > coefL_start + AAC_MAX_NSAMPS)
+						return ERR_AAC_INVALID_FRAME;
+
 					cr = MULSHIFT32(*coefL++, scalef);
 					CLIP_2N(cr, 31-scalei);
 					cr <<= scalei;
@@ -125,6 +132,9 @@ static const int pow14[2][4] PROGMEM = {
 				if (scalei > 31)
 					scalei = 31;
 				do {
+					if(coefL > coefL_start + AAC_MAX_NSAMPS)
+						return ERR_AAC_INVALID_FRAME;
+
 					cr = MULSHIFT32(*coefL++, scalef) >> scalei;
 					gbMaskR |= FASTABS(cr);
 					*coefR++ = cr;
@@ -146,6 +156,8 @@ static const int pow14[2][4] PROGMEM = {
 					sf = cl + cr;
 					cl -= cr;
 				}
+				if(coefL >= coefL_start + AAC_MAX_NSAMPS)
+					return ERR_AAC_INVALID_FRAME;
 
 				*coefL++ = sf;
 				gbMaskL |= FASTABS(sf);
@@ -175,7 +187,7 @@ static const int pow14[2][4] PROGMEM = {
 	if (gbCurrent[1] > cr)
 		gbCurrent[1] = cr;
 
-	return;
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -194,7 +206,7 @@ int StereoProcess(AACDecInfo *aacDecInfo)
 {
 	PSInfoBase *psi;
 	ICSInfo *icsInfo;
-	int gp, win, nSamps, msMaskOffset;
+	int gp, win, nSamps, msMaskOffset, ret;
 	int *coefL, *coefR;
 	unsigned char *msMaskPtr;
 	const /*short*/ int *sfbTab;
@@ -228,9 +240,12 @@ int StereoProcess(AACDecInfo *aacDecInfo)
 	msMaskPtr = psi->msMaskBits;
 	for (gp = 0; gp < icsInfo->numWinGroup; gp++) {
 		for (win = 0; win < icsInfo->winGroupLen[gp]; win++) {
-			StereoProcessGroup(coefL, coefR, sfbTab, psi->msMaskPresent, 
+			ret = StereoProcessGroup(coefL, coefR, sfbTab, psi->msMaskPresent,
 				msMaskPtr, msMaskOffset, icsInfo->maxSFB, psi->sfbCodeBook[1] + gp*icsInfo->maxSFB, 
 				psi->scaleFactors[1] + gp*icsInfo->maxSFB, psi->gbCurrent);
+			if (ret != ERR_AAC_NONE)
+				return ret;
+			
 			coefL += nSamps;
 			coefR += nSamps;
 		}
@@ -239,8 +254,8 @@ int StereoProcess(AACDecInfo *aacDecInfo)
 		msMaskOffset = (msMaskOffset + icsInfo->maxSFB) & 0x07;
 	}
 
-	ASSERT(coefL == psi->coef[0] + 1024);
-	ASSERT(coefR == psi->coef[1] + 1024);
+	if((coefL != psi->coef[0] + 1024) || (coefR != psi->coef[1] + 1024))
+		return ERR_AAC_UNKNOWN;
 
 	return 0;
 }

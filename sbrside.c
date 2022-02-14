@@ -148,9 +148,9 @@ static const unsigned char cLog2[9] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
  * 
  * Outputs:     initialized SBRGrid struct for this channel
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-static void UnpackSBRGrid(BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid *sbrGrid)
+static int UnpackSBRGrid(BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid *sbrGrid)
 {
 	int numEnvRaw, env, rel, pBits, border, middleBorder=0;
 	unsigned char relBordLead[MAX_NUM_ENV], relBordTrail[MAX_NUM_ENV];
@@ -168,7 +168,8 @@ static void UnpackSBRGrid(BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid *sbrGri
 		if (sbrGrid->numEnv == 1)
 			sbrGrid->ampResFrame = 0;
 
-		ASSERT(sbrGrid->numEnv == 1 || sbrGrid->numEnv == 2 || sbrGrid->numEnv == 4);
+		if(sbrGrid->numEnv != 1 && sbrGrid->numEnv != 2 && sbrGrid->numEnv != 4)
+			return ERR_AAC_UNKNOWN;
 
 		sbrGrid->freqRes[0] = GetBits(bsi, 1);
 		for (env = 1; env < sbrGrid->numEnv; env++)
@@ -251,7 +252,8 @@ static void UnpackSBRGrid(BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid *sbrGri
 		numRelBorder1 = GetBits(bsi, 2);
 
 		sbrGrid->numEnv = numRelBorder0 + numRelBorder1 + 1;
-		ASSERT(sbrGrid->numEnv <= 5);
+		if(sbrGrid->numEnv > 5)
+			return ERR_AAC_UNKNOWN;
 
 		for (rel = 0; rel < numRelBorder0; rel++)
 			relBorder0[rel] = 2*GetBits(bsi, 2) + 2;
@@ -309,6 +311,8 @@ static void UnpackSBRGrid(BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid *sbrGri
 		sbrGrid->noiseTimeBorder[0] = sbrGrid->envTimeBorder[0];
 		sbrGrid->noiseTimeBorder[1] = sbrGrid->envTimeBorder[1];
 	}
+
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -449,11 +453,11 @@ static void CopyCouplingInverseFilterMode(int numNoiseFloorBands, unsigned char 
  * 
  * Outputs:     updated PSInfoSBR struct (SBRGrid and SBRChan)
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-void UnpackSBRSingleChannel(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
+int UnpackSBRSingleChannel(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
 {
-	int bitsLeft;
+	int bitsLeft, ret;
 	SBRHeader *sbrHdr = &(psi->sbrHdr[chBase]);
 	SBRGrid *sbrGridL = &(psi->sbrGrid[chBase+0]);
 	SBRFreq *sbrFreq =  &(psi->sbrFreq[chBase]);
@@ -463,12 +467,20 @@ void UnpackSBRSingleChannel(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
 	if (psi->dataExtra)
 		psi->resBitsData = GetBits(bsi, 4);
 
-	UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
+	ret = UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
+	if(ret != ERR_AAC_NONE)
+		return ret;
+
 	UnpackDeltaTimeFreq(bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
 	UnpackInverseFilterMode(bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
 
-	DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-	DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+	ret = DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+	if(ret != ERR_AAC_NONE)
+		return ret;
+
+	ret = DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+	if (ret != ERR_AAC_NONE)
+		return ret;
 
 	sbrChanL->addHarmonicFlag[1] = GetBits(bsi, 1);
 	UnpackSinusoids(bsi, sbrFreq->nHigh, sbrChanL->addHarmonicFlag[1], sbrChanL->addHarmonic[1]);
@@ -487,6 +499,8 @@ void UnpackSBRSingleChannel(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
 			bitsLeft -= 8;
 		}
 	}
+
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -502,11 +516,11 @@ void UnpackSBRSingleChannel(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
  * 
  * Outputs:     updated PSInfoSBR struct (SBRGrid and SBRChan for both channels)
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-void UnpackSBRChannelPair(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
+int UnpackSBRChannelPair(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
 {
-	int bitsLeft;
+	int bitsLeft, ret;
 	SBRHeader *sbrHdr = &(psi->sbrHdr[chBase]);
 	SBRGrid *sbrGridL = &(psi->sbrGrid[chBase+0]), *sbrGridR = &(psi->sbrGrid[chBase+1]);
 	SBRFreq *sbrFreq =  &(psi->sbrFreq[chBase]);
@@ -520,7 +534,10 @@ void UnpackSBRChannelPair(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
 
 	psi->couplingFlag = GetBits(bsi, 1);
 	if (psi->couplingFlag) {
-		UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
+		ret = UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
 		CopyCouplingGrid(sbrGridL, sbrGridR);
 
 		UnpackDeltaTimeFreq(bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
@@ -529,27 +546,55 @@ void UnpackSBRChannelPair(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
 		UnpackInverseFilterMode(bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
 		CopyCouplingInverseFilterMode(sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1], sbrChanR->invfMode[1]);
 		
-		DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-		DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-		DecodeSBREnvelope(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-		DecodeSBRNoise(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+		ret = DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
+		ret = DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
+		ret = DecodeSBREnvelope(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
+		ret = DecodeSBRNoise(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+		if (ret != ERR_AAC_NONE)
+			return ret;
 
 		/* pass RIGHT sbrChan struct */
 		UncoupleSBREnvelope(psi, sbrGridL, sbrFreq, sbrChanR);
 		UncoupleSBRNoise(psi, sbrGridL, sbrFreq, sbrChanR);
 
 	} else {
-		UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
-		UnpackSBRGrid(bsi, sbrHdr, sbrGridR);
+		ret = UnpackSBRGrid(bsi, sbrHdr, sbrGridL);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
+		ret = UnpackSBRGrid(bsi, sbrHdr, sbrGridR);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
 		UnpackDeltaTimeFreq(bsi, sbrGridL->numEnv, sbrChanL->deltaFlagEnv, sbrGridL->numNoiseFloors, sbrChanL->deltaFlagNoise);
 		UnpackDeltaTimeFreq(bsi, sbrGridR->numEnv, sbrChanR->deltaFlagEnv, sbrGridR->numNoiseFloors, sbrChanR->deltaFlagNoise);
 		UnpackInverseFilterMode(bsi, sbrFreq->numNoiseFloorBands, sbrChanL->invfMode[1]);
 		UnpackInverseFilterMode(bsi, sbrFreq->numNoiseFloorBands, sbrChanR->invfMode[1]);
 
-		DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-		DecodeSBREnvelope(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
-		DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
-		DecodeSBRNoise(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+		ret = DecodeSBREnvelope(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
+		ret = DecodeSBREnvelope(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
+		ret = DecodeSBRNoise(bsi, psi, sbrGridL, sbrFreq, sbrChanL, 0);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+
+		ret = DecodeSBRNoise(bsi, psi, sbrGridR, sbrFreq, sbrChanR, 1);
+		if (ret != ERR_AAC_NONE)
+			return ret;
 	}
 
 	sbrChanL->addHarmonicFlag[1] = GetBits(bsi, 1);
@@ -572,4 +617,6 @@ void UnpackSBRChannelPair(BitStreamInfo *bsi, PSInfoSBR *psi, int chBase)
 			bitsLeft -= 8;
 		}
 	}
+
+	return ERR_AAC_NONE;
 }

@@ -318,6 +318,9 @@ int PNS(AACDecInfo *aacDecInfo, int ch)
 						 * if ch 1 has PNS enabled for this SFB but it's uncorrelated (i.e. ms_used == 0),
 						 *    the copied values will be overwritten when we process ch 1
 						 */
+						if(coef + width > psi->coef[ch] + AAC_MAX_NSAMPS)
+							return ERR_AAC_INVALID_FRAME;
+
 						GenerateNoiseVector(coef, &psi->pnsLastVal, width);
 						if (checkCorr && psi->sfbCodeBook[1][gp*icsInfo->maxSFB + sfb] == 13)
 							CopyNoiseVector(coef, psi->coef[1] + (coef - psi->coef[0]), width);
@@ -328,8 +331,13 @@ int PNS(AACDecInfo *aacDecInfo, int ch)
 							if ( (psi->msMaskPresent == 1 && (msMask & 0x01)) || psi->msMaskPresent == 2 )
 								genNew = 0;
 						}
-						if (genNew)
+
+						if (genNew) {
+							if(coef + width > psi->coef[ch] + AAC_MAX_NSAMPS)
+								return ERR_AAC_INVALID_FRAME;
+
 							GenerateNoiseVector(coef, &psi->pnsLastVal, width);
+						}
 					}
 					gbMask |= ScaleNoiseVector(coef, width, psi->scaleFactors[ch][gp*icsInfo->maxSFB + sfb]);
 				}

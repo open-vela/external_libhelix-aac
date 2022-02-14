@@ -62,11 +62,14 @@
  *
  * Outputs:     updated icsInfo struct
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-/* __attribute__ ((section (".data"))) */ void DecodeICSInfo(BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx)
+/* __attribute__ ((section (".data"))) */ int DecodeICSInfo(BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx)
 {
 	int sfb, g, mask;
+
+	if(sampRateIdx < 0 || sampRateIdx > NUM_SAMPLE_RATES)
+		return ERR_AAC_INVALID_FRAME;
 
 	icsInfo->icsResBit =      GetBits(bsi, 1);
 	icsInfo->winSequence =    GetBits(bsi, 2);
@@ -95,12 +98,18 @@
 			icsInfo->predictorReset =   GetBits(bsi, 1);
 			if (icsInfo->predictorReset)
 				icsInfo->predictorResetGroupNum = GetBits(bsi, 5);
-			for (sfb = 0; sfb < MIN(icsInfo->maxSFB, predSFBMax[sampRateIdx]); sfb++)
+			for (sfb = 0; sfb < MIN(icsInfo->maxSFB, predSFBMax[sampRateIdx]); sfb++) {
+				if(sfb >= MAX_PRED_SFB)
+					return ERR_AAC_INVALID_FRAME;
+
 				icsInfo->predictionUsed[sfb] = GetBits(bsi, 1);
+			}
 		}
 		icsInfo->numWinGroup = 1;
 		icsInfo->winGroupLen[0] = 1;
 	}
+
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -117,7 +126,7 @@
  *
  * Outputs:     index of Huffman codebook for each scalefactor band in each section
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  *
  * Notes:       sectCB, sectEnd, sfbCodeBook, ordered by window groups for short blocks
  **************************************************************************************/
@@ -132,17 +141,28 @@
 	for (g = 0; g < numWinGrp; g++) {
 		sfb = 0;
 		while (sfb < maxSFB) {
+			if (bsi->nBytes == 0 && bsi->cachedBits < 4)
+				return ERR_AAC_INDATA_UNDERFLOW;
+
 			cb = GetBits(bsi, 4);	/* next section codebook */
 			sectLen = 0;
 			do {
+				if (bsi->nBytes == 0 && bsi->cachedBits < sectLenBits)
+					return ERR_AAC_INDATA_UNDERFLOW;
+
 				sectLenIncr = GetBits(bsi, sectLenBits);
 				sectLen += sectLenIncr;
 			} while (sectLenIncr == sectEscapeVal);
 
+			if (sectLen >= MAX_SF_BANDS)
+				return ERR_AAC_INVALID_FRAME;
+
 			sfb += sectLen;
-			while (sectLen--)
+			while (sectLen--) {
 				*sfbCodeBook++ = (unsigned char)cb;
+			}
 		}
+
 		if(sfb != maxSFB)
 			return ERR_AAC_UNKNOWN;
 	}
@@ -188,7 +208,7 @@ static int DecodeOneScaleFactor(BitStreamInfo *bsi)
  *
  * Outputs:     decoded scalefactor for each section
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  *
  * Notes:       sfbCodeBook, scaleFactors ordered by window groups for short blocks
  *              for section with codebook 13, scaleFactors buffer has decoded PNS
@@ -196,7 +216,7 @@ static int DecodeOneScaleFactor(BitStreamInfo *bsi)
  *              for section with codebook 14 or 15, scaleFactors buffer has intensity
  *                stereo weight instead of regular scalefactor
  **************************************************************************************/
-/* __attribute__ ((section (".data"))) */ static void DecodeScaleFactors(BitStreamInfo *bsi, int numWinGrp, int maxSFB, int globalGain,
+/* __attribute__ ((section (".data"))) */ static int DecodeScaleFactors(BitStreamInfo *bsi, int numWinGrp, int maxSFB, int globalGain,
 								  unsigned char *sfbCodeBook, short *scaleFactors)
 {
 	int g, sfbCB, nrg, npf, val, sf, is;
@@ -206,6 +226,9 @@ static int DecodeOneScaleFactor(BitStreamInfo *bsi)
 	is = 0;
 	nrg = globalGain - 90 - 256;
 	npf = 1;
+
+	if(numWinGrp * maxSFB < 0 || numWinGrp * maxSFB > MAX_SF_BANDS)
+		return ERR_AAC_INVALID_FRAME;
 
 	for (g = 0; g < numWinGrp * maxSFB; g++) {
 		sfbCB = *sfbCodeBook++;
@@ -235,6 +258,8 @@ static int DecodeOneScaleFactor(BitStreamInfo *bsi)
 			*scaleFactors++ = 0;
 		}
 	}
+
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -273,18 +298,18 @@ static int DecodeOneScaleFactor(BitStreamInfo *bsi)
  * Outputs:     updated TNSInfo struct
  *              buffer of decoded (signed) TNS filter coefficients
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
 static const signed char sgnMask[3] = {0x02,  0x04,  0x08};
 static const signed char negMask[3] = {~0x03, ~0x07, ~0x0f};
 
-static void DecodeTNSInfo(BitStreamInfo *bsi, int winSequence, TNSInfo *ti, signed char *tnsCoef)
+static int DecodeTNSInfo(BitStreamInfo *bsi, int winSequence, TNSInfo *ti, signed char *tnsCoef)
 {
 	int i, w, f, coefBits, compress;
 	signed char c, s, n;
 
 	unsigned char *filtLength, *filtOrder, *filtDir;
-
+	signed char *tnsCoef_end = tnsCoef + MAX_TNS_COEFS;
 	filtLength = ti->length;
 	filtOrder =  ti->order;
 	filtDir =    ti->dir;
@@ -295,17 +320,32 @@ static void DecodeTNSInfo(BitStreamInfo *bsi, int winSequence, TNSInfo *ti, sign
 			ti->numFilt[w] = GetBits(bsi, 1);
 			if (ti->numFilt[w]) {
 				ti->coefRes[w] = GetBits(bsi, 1) + 3;
+
+				if(filtLength >= ti->length + MAX_TNS_FILTERS || filtOrder >= ti->order + MAX_TNS_FILTERS)
+					return ERR_AAC_INVALID_FRAME;
+
 				*filtLength =    GetBits(bsi, 4);
 				*filtOrder =     GetBits(bsi, 3);
+
 				if (*filtOrder) {
+					if(filtDir >= ti->dir + MAX_TNS_FILTERS)
+						return ERR_AAC_INVALID_FRAME;
+
 					*filtDir++ =      GetBits(bsi, 1);
 					compress =        GetBits(bsi, 1);
 					coefBits = (int)ti->coefRes[w] - compress;	/* 2, 3, or 4 */
+
+					if(coefBits < 2 || coefBits > 4)
+						return ERR_AAC_INVALID_FRAME;
+
 					s = sgnMask[coefBits - 2];
 					n = negMask[coefBits - 2];
 					for (i = 0; i < *filtOrder; i++) {
 						c = GetBits(bsi, coefBits);
 						if (c & s)	c |= n;
+						if(tnsCoef >= tnsCoef_end)
+							return ERR_AAC_INVALID_FRAME;
+
 						*tnsCoef++ = c;
 					}
 				}
@@ -319,24 +359,40 @@ static void DecodeTNSInfo(BitStreamInfo *bsi, int winSequence, TNSInfo *ti, sign
 		if (ti->numFilt[0])
 			ti->coefRes[0] = GetBits(bsi, 1) + 3;
 		for (f = 0; f < ti->numFilt[0]; f++) {
+
+			if(filtLength >= ti->length + MAX_TNS_FILTERS || filtOrder >= ti->order + MAX_TNS_FILTERS)
+				return ERR_AAC_INVALID_FRAME;
+
 			*filtLength =      GetBits(bsi, 6);
 			*filtOrder =       GetBits(bsi, 5);
 			if (*filtOrder) {
-				*filtDir++ =     GetBits(bsi, 1);
+				if(filtDir >= ti->dir+MAX_TNS_FILTERS)
+					return ERR_AAC_INVALID_FRAME;
+
+			*filtDir++ =     GetBits(bsi, 1);
 				compress =       GetBits(bsi, 1);
 				coefBits = (int)ti->coefRes[0] - compress;	/* 2, 3, or 4 */
+
+				if(coefBits < 2 || coefBits > 4)
+					return ERR_AAC_INVALID_FRAME;
+
 				s = sgnMask[coefBits - 2];
 				n = negMask[coefBits - 2];
 				for (i = 0; i < *filtOrder; i++) {
 					c = GetBits(bsi, coefBits);
 					if (c & s)	c |= n;
-					*tnsCoef++ = c;
+					if(tnsCoef >= tnsCoef_end)
+						return ERR_AAC_INVALID_FRAME;
+
+				*tnsCoef++ = c;
 				}
 			}
 			filtLength++;
 			filtOrder++;
 		}
 	}
+
+	return ERR_AAC_NONE;
 }
 
 /* bitstream field lengths for gain control data:
@@ -362,17 +418,25 @@ static const unsigned char gainBits[4][3] = {
  *
  * Outputs:     updated GainControlInfo struct
  *
- * Return:      none
+ * Return:      0 if successful, error code (< 0) if error
  **************************************************************************************/
-static void DecodeGainControlInfo(BitStreamInfo *bsi, int winSequence, GainControlInfo *gi)
+static int DecodeGainControlInfo(BitStreamInfo *bsi, int winSequence, GainControlInfo *gi)
 {
 	int bd, wd, ad;
 	int locBits, locBitsZero, maxWin;
 	
 	gi->maxBand = GetBits(bsi, 2);
+
+	if(winSequence < 0 || winSequence >= 4)
+		return ERR_AAC_INVALID_FRAME;
+
 	maxWin =      (int)gainBits[winSequence][0];
 	locBitsZero = (int)gainBits[winSequence][1];
 	locBits =     (int)gainBits[winSequence][2];
+
+	///< Warning!!! walnut project will pass invalid data into this decoder, but libhelix doesn't check some error streams such as here array subscript is out of bounds.
+	if((gi->maxBand >= MAX_GAIN_BANDS) || maxWin < 0 || (maxWin >= MAX_GAIN_WIN))
+		return ERR_AAC_INVALID_FRAME;
 
 	for (bd = 1; bd <= gi->maxBand; bd++) {
 		for (wd = 0; wd < maxWin; wd++) {
@@ -383,6 +447,8 @@ static void DecodeGainControlInfo(BitStreamInfo *bsi, int winSequence, GainContr
 			}
 		}
 	}
+
+	return ERR_AAC_NONE;
 }
 
 /**************************************************************************************
@@ -398,7 +464,7 @@ static void DecodeGainControlInfo(BitStreamInfo *bsi, int winSequence, GainContr
  * Outputs:     updated section data, scale factor data, pulse data, TNS data, 
  *                and gain control data
  *
- * Return:      none
+ * Return:      if successful, error code (< 0) if error
  **************************************************************************************/
 static int DecodeICS(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
 {
@@ -411,13 +477,19 @@ static int DecodeICS(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
 	icsInfo = (ch == 1 && psi->commonWin == 1) ? &(psi->icsInfo[0]) : &(psi->icsInfo[ch]);
 
 	globalGain = GetBits(bsi, 8);
-	if (!psi->commonWin)
-		DecodeICSInfo(bsi, icsInfo, psi->sampRateIdx);
+	if (!psi->commonWin) {
+		ret = DecodeICSInfo(bsi, icsInfo, psi->sampRateIdx);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+ 	}
 
-	if((ret = DecodeSectionData(bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch])) != ERR_AAC_NONE)
+	ret = DecodeSectionData(bsi, icsInfo->winSequence, icsInfo->numWinGroup, icsInfo->maxSFB, psi->sfbCodeBook[ch]);
+	if(ret != ERR_AAC_NONE)
 		return ret;
 
-	DecodeScaleFactors(bsi, icsInfo->numWinGroup, icsInfo->maxSFB, globalGain, psi->sfbCodeBook[ch], psi->scaleFactors[ch]);
+	ret = DecodeScaleFactors(bsi, icsInfo->numWinGroup, icsInfo->maxSFB, globalGain, psi->sfbCodeBook[ch], psi->scaleFactors[ch]);
+	if (ret != ERR_AAC_NONE)
+		return ret;
 
 	pi = &psi->pulseInfo[ch];
 	pi->pulseDataPresent = GetBits(bsi, 1);
@@ -426,13 +498,18 @@ static int DecodeICS(PSInfoBase *psi, BitStreamInfo *bsi, int ch)
 
 	ti = &psi->tnsInfo[ch];
 	ti->tnsDataPresent = GetBits(bsi, 1);
-	if (ti->tnsDataPresent)
-		DecodeTNSInfo(bsi, icsInfo->winSequence, ti, ti->coef);
+	if (ti->tnsDataPresent) {
+		ret = DecodeTNSInfo(bsi, icsInfo->winSequence, ti, ti->coef);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+	}
 
 	gi = &psi->gainControlInfo[ch];
 	gi->gainControlDataPresent = GetBits(bsi, 1);
-	if (gi->gainControlDataPresent)
-		DecodeGainControlInfo(bsi, icsInfo->winSequence, gi);
+	if (gi->gainControlDataPresent) {
+		return DecodeGainControlInfo(bsi, icsInfo->winSequence, gi);
+	}
+
 	return ERR_AAC_NONE;
 }
 
@@ -473,10 +550,11 @@ int DecodeNoiselessData(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOff
 	if((ret = DecodeICS(psi, &bsi, ch)) != ERR_AAC_NONE)
 		return ret;
 
-	if (icsInfo->winSequence == 2)
-		DecodeSpectrumShort(psi, &bsi, ch);
-	else
-	{
+	if (icsInfo->winSequence == 2) {
+		ret = DecodeSpectrumShort(psi, &bsi, ch);
+		if (ret != ERR_AAC_NONE)
+			return ret;
+	} else {
 		ret = DecodeSpectrumLong(psi, &bsi, ch);
 		if(ret != ERR_AAC_NONE)
 			return ret;
@@ -486,6 +564,8 @@ int DecodeNoiselessData(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOff
 	*buf += ((bitsUsed + *bitOffset) >> 3);
 	*bitOffset = ((bitsUsed + *bitOffset) & 0x07);
 	*bitsAvail -= bitsUsed;
+	if (*bitsAvail < 0)
+		return ERR_AAC_INDATA_UNDERFLOW;
 
 	aacDecInfo->sbDeinterleaveReqd[ch] = 0;
 	aacDecInfo->tnsUsed |= psi->tnsInfo[ch].tnsDataPresent;	/* set flag if TNS used for any channel */

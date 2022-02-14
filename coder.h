@@ -332,10 +332,10 @@ int DecodeProgramConfigElement(ProgConfigElement *pce, BitStreamInfo *bsi);
 /* huffman.c */
 int DecodeHuffmanScalar(const signed short *huffTab, const HuffInfo *huffTabInfo, unsigned int bitBuf, signed int *val);
 int DecodeSpectrumLong(PSInfoBase *psi, BitStreamInfo *bsi, int ch);
-void DecodeSpectrumShort(PSInfoBase *psi, BitStreamInfo *bsi, int ch);
+int DecodeSpectrumShort(PSInfoBase *psi, BitStreamInfo *bsi, int ch);
 
 /* noiseless.c */
-void DecodeICSInfo(BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx);
+int DecodeICSInfo(BitStreamInfo *bsi, ICSInfo *icsInfo, int sampRateIdx);
 
 /* dct4.c */
 void DCT4(int tabidx, int *coef, int gb);

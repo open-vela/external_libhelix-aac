@@ -349,8 +349,8 @@ void AdjustHighFreq(PSInfoSBR *psi, SBRHeader *sbrHdr, SBRGrid *sbrGrid, SBRFreq
 void GenerateHighFreq(PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
 
 /* sbrhuff.c */
-void DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
-void DecodeSBRNoise(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
+int DecodeSBREnvelope(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
+int DecodeSBRNoise(BitStreamInfo *bsi, PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChan, int ch);
 void UncoupleSBREnvelope(PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR);
 void UncoupleSBRNoise(PSInfoSBR *psi, SBRGrid *sbrGrid, SBRFreq *sbrFreq, SBRChan *sbrChanR);
 
@@ -366,8 +366,8 @@ void QMFSynthesis(int *inbuf, int *delay, int *delayIdx, int qmfsBands, short *o
 /* sbrside.c */
 int GetSampRateIdx(int sampRate);
 int UnpackSBRHeader(BitStreamInfo *bsi, SBRHeader *sbrHdr);
-void UnpackSBRSingleChannel(BitStreamInfo *bsi, PSInfoSBR *psi, int chOut);
-void UnpackSBRChannelPair(BitStreamInfo *bsi, PSInfoSBR *psi, int chOut);
+int UnpackSBRSingleChannel(BitStreamInfo *bsi, PSInfoSBR *psi, int chOut);
+int UnpackSBRChannelPair(BitStreamInfo *bsi, PSInfoSBR *psi, int chOut);
 
 /* sbrtabs.c */
 extern const unsigned char k0Tab[NUM_SAMPLE_RATES_SBR][16];
