@@ -20,7 +20,7 @@ CSRCS += aacdec.c bitstream.c buffers.c dct4.c decelmnt.c dequant.c
 CSRCS += fft.c filefmt.c huffman.c hufftabs.c imdct.c noiseless.c
 CSRCS += pns.c stproc.c tns.c trigtabs.c aactabs.c
 
-ifneq ($(CONFIG_LIB_HELIX_SBR),)
+ifneq ($(CONFIG_LIB_HELIX_AAC_SBR),)
 CSRCS += sbr.c sbrfft.c sbrfreq.c sbrhfadj.c sbrhfgen.c sbrhuff.c
 CSRCS += sbrimdct.c sbrmath.c sbrqmf.c sbrside.c sbrtabs.c
 endif
