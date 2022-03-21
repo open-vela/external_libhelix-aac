@@ -16,15 +16,15 @@
 
 menu "Helix Advanced Audio Codec"
 
-config CODEC_HELIXAAC
+config LIB_HELIX_AAC
 	bool "The Helix Advanced Audio Codec Library"
 	default n
 	---help---
 		Enable support for the Helix Advanced Audio Codec library
 
-if CODEC_HELIXAAC
+if LIB_HELIX_AAC
 
-config CODEC_HELIXAAC_SBR
+config LIB_HELIX_SBR
 	bool "AAC-Spectral Band Replication"
 	default n
 	---help---
