@@ -14,6 +14,6 @@
 # limitations under the License.
 #
 
-ifeq ($(CONFIG_CODEC_HELIXAAC),y)
+ifneq ($(CONFIG_LIB_HELIX_AAC),)
 CONFIGURED_APPS += $(APPDIR)/external/libhelix-aac
 endif
