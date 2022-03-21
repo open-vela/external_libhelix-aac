@@ -24,7 +24,7 @@ config LIB_HELIX_AAC
 
 if LIB_HELIX_AAC
 
-config LIB_HELIX_SBR
+config LIB_HELIX_AAC_SBR
 	bool "AAC-Spectral Band Replication"
 	default n
 	---help---
