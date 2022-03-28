@@ -49,7 +49,7 @@
 #include "Arduino.h"
 //#include <pgmspace.h>
 
-#ifdef CONFIG_CODEC_HELIXAAC_SBR
+#ifdef CONFIG_LIB_HELIX_AAC_SBR
   #define AAC_ENABLE_SBR 1
 #endif
 
