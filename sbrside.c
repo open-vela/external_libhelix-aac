@@ -153,7 +153,7 @@ static const unsigned char cLog2[9] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
 static int UnpackSBRGrid(BitStreamInfo *bsi, SBRHeader *sbrHdr, SBRGrid *sbrGrid)
 {
 	int numEnvRaw, env, rel, pBits, border, middleBorder=0;
-	unsigned char relBordLead[MAX_NUM_ENV], relBordTrail[MAX_NUM_ENV];
+	unsigned char relBordLead[MAX_NUM_ENV] = {0}, relBordTrail[MAX_NUM_ENV] = {0};
 	unsigned char relBorder0[3], relBorder1[3], relBorder[3];
 	unsigned char numRelBorder0, numRelBorder1, numRelBorder, numRelLead=0, numRelTrail;
 	unsigned char absBordLead=0, absBordTrail=0, absBorder;
