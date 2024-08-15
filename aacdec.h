@@ -58,6 +58,8 @@
 #
 #elif defined(__GNUC__) && defined(__arm__)
 #
+#elif defined(__GNUC__) && defined(__aarch64__)
+#
 #elif defined(__GNUC__) && defined(__i386__)
 #
 #elif defined(__GNUC__) && defined(__amd64__)
