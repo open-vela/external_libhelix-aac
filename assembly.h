@@ -426,6 +426,64 @@ static inline Word64 MADD64(Word64 sum64, int x, int y)
 	return u.w64;
 }
 
+#elif defined(__GNUC__) && defined(__aarch64__)
+
+typedef long long Word64;
+
+typedef union _U64 {
+    Word64 w64;
+    struct {
+        /* little endian */
+        unsigned int lo32;
+        signed int   hi32;
+    } r;
+} U64;
+
+static inline int MULSHIFT32(int x, int y)
+{
+    int z;
+
+    z = (Word64)x * (Word64)y >> 32;
+    return z;
+}
+
+static inline short CLIPTOSHORT(int x)
+{
+    int sign;
+
+    // clip to [-32768, 32767] //
+    sign = x >> 31;
+    if (sign != (x >> 15))
+        x = sign ^ ((1 << 15) - 1);
+
+    return (short)x;
+}
+
+#define CLIP_2N(y, n) {                   \
+    int sign = (y) >> 31;                 \
+    if (sign != (y) >> (n))  {            \
+        (y) = sign ^ ((1 << (n)) - 1);    \
+    }                                     \
+}
+
+#define CLIP_2N_SHIFT(y, n) {             \
+        int sign = (y) >> 31;             \
+        if (sign != (y) >> (30 - (n)))  { \
+            (y) = sign ^ (0x3fffffff);    \
+        } else {                          \
+            (y) = (y) << (n);             \
+        }                                 \
+    }
+
+#define FASTABS(x) abs(x)
+#define CLZ(x) __builtin_clz(x)
+
+static inline Word64 MADD64(Word64 sum64, int x, int y)
+{
+    sum64 += (Word64)x * (Word64)y;
+    return sum64;
+}
+
 /* toolchain:           x86 gcc
  * target architecture: x86
  */
