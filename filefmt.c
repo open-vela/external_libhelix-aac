@@ -115,12 +115,6 @@ int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 	if (!aacDecInfo || !aacDecInfo->psInfoBase)
 		return ERR_AAC_NULL_POINTER;
 
-	if ((*bitsAvail + 7 ) >> 3 < LATM_HEADER_BYTES + 10) {
-		if (bytesFrames)
-			*bytesFrames = LATM_HEADER_BYTES + 10;
-		return ERR_AAC_INDATA_HEADER_UNDERFLOW;
-	}
-
 	psi = (PSInfoBase *)(aacDecInfo->psInfoBase);
 	fhLATM = &(psi->fhLATM);
 
@@ -225,9 +219,6 @@ int UnpackLATMHeader(AACDecInfo *aacDecInfo, unsigned char **buf, int *bitOffset
 	*buf += (bitsUsed + *bitOffset) >> 3;
 	*bitOffset = (bitsUsed + *bitOffset) & 0x07;
 	*bitsAvail -= bitsUsed;
-
-	if (*bitsAvail < 0)
-		return ERR_AAC_INDATA_HEADER_UNDERFLOW;
 
 	return ERR_AAC_NONE;
 }
