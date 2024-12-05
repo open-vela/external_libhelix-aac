@@ -46,6 +46,8 @@
 #include "coder.h"
 #include "assembly.h"
 
+#ifdef AAC_ENABLE_PNS
+
 /**************************************************************************************
  * Function:    Get32BitVal
  *
@@ -363,3 +365,15 @@ int PNS(AACDecInfo *aacDecInfo, int ch)
 	
 	return 0;
 }
+
+#else
+
+int PNS(AACDecInfo *aacDecInfo, int ch)
+{
+    if (aacDecInfo->pnsUsed)
+        return ERR_AAC_PNS;
+    else
+        return ERR_AAC_NONE;
+}
+
+#endif
