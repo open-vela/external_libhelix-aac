@@ -49,6 +49,10 @@
 #include "Arduino.h"
 //#include <pgmspace.h>
 
+#ifdef CONFIG_LIB_HELIX_AAC_PNS
+  #define AAC_ENABLE_PNS 1
+#endif
+
 #ifdef CONFIG_LIB_HELIX_AAC_SBR
   #define AAC_ENABLE_SBR 1
 #endif
