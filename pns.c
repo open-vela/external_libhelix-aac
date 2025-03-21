@@ -277,7 +277,6 @@ int PNS(AACDecInfo *aacDecInfo, int ch)
 	int *coef;
 	const /*short*/ int *sfbTab;
 	unsigned char *sfbCodeBook;
-	short *scaleFactors;
 	int msMaskOffset, checkCorr, genNew;
 	unsigned char msMask;
 	unsigned char *msMaskPtr;
@@ -302,7 +301,6 @@ int PNS(AACDecInfo *aacDecInfo, int ch)
 	}
 	coef = psi->coef[ch];
 	sfbCodeBook = psi->sfbCodeBook[ch];
-	scaleFactors = psi->scaleFactors[ch];
 	checkCorr = (aacDecInfo->currBlockID == AAC_ID_CPE && psi->commonWin == 1 ? 1 : 0);
 	
 	gbMask = 0;
@@ -355,7 +353,6 @@ int PNS(AACDecInfo *aacDecInfo, int ch)
 			coef += (nSamps - sfbTab[icsInfo->maxSFB]);
 		}
 		sfbCodeBook += icsInfo->maxSFB;
-		scaleFactors += icsInfo->maxSFB;
 	}
 	
 	/* update guard bit count if necessary */
